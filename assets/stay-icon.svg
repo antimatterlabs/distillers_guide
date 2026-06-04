@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 12 12">
+  <defs>
+    <clipPath id="clippath">
+      <rect width="12" height="12" fill="none"/>
+    </clipPath>
+  </defs>
+  <g id="Text">
+    <g id="Boatskeg">
+      <g id="icon3">
+        <g clip-path="url(#clippath)">
+          <path d="M5.2,4.35h-1.19c-.12,0-.2.08-.2.2v.85h1.58v-.85c0-.12-.08-.2-.2-.2" fill="#cdc5b6"/>
+          <rect x="5.6" y="5.2" width=".65" height=".2" fill="#cdc5b6"/>
+          <path d="M9.89,6.98H1.98v-.4c0-.65.53-1.19,1.19-1.19h.46v-.2h-.46c-.14,0-.28.02-.4.06v-2.24c0-.14.12-.26.26-.26h5.8c.14,0,.26.12.26.26v2.24c-.12-.04-.26-.06-.4-.06h-.46v.2h.47c.65,0,1.19.53,1.19,1.19v.4M9.89,9.1H1.98v-1.92h7.91v1.92ZM5.94,0C2.65,0,0,2.65,0,5.94s2.65,5.94,5.94,5.94,5.94-2.65,5.94-5.94S9.22,0,5.94,0Z" fill="#cdc5b6"/>
+          <path d="M7.85,4.35h-1.19c-.12,0-.2.08-.2.2v.85h1.58v-.85c0-.12-.1-.2-.2-.2" fill="#cdc5b6"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

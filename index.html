@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CDANS — Nova Scotia Distillery Guide Map</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- CDANS -->
+  <link rel="stylesheet" href="assets/cdans-styles.css">
+
+  <!-- Page chrome (demo only; not part of the embeddable widget) -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #005166; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  </style>
+</head>
+<body>
+    <!-- ===== EMBEDDABLE WIDGET (everything below ports into WordPress) ===== -->
+    <div id="cdans_app">
+      <aside class="cdans_sidebar">
+        <div class="cdans_sidebar_head">
+          <div class="cdans_head_row">
+            <div>
+              <h1 class="cdans_h1">Distillery Map</h1>
+              <p class="cdans_sub">17 stops across Nova Scotia</p>
+            </div>
+            <button id="cdans_editbtn" class="cdans_editbtn" title="Drag markers to fine-tune positions">Edit pins</button>
+          </div>
+        </div>
+        <div id="cdans_editbar" class="cdans_editbar">
+          <span class="cdans_editbar_txt">Drag any pin to reposition it.</span>
+          <button id="cdans_editcopy">Copy coords</button>
+        </div>
+        <div id="cdans_legend" class="cdans_legend"></div>
+        <div id="cdans_list" class="cdans_list"></div>
+      </aside>
+
+      <div class="cdans_map_wrap">
+        <div id="cdans_map"></div>
+        <div id="cdans_detail" class="cdans_detail"></div>
+      </div>
+    </div>
+    <!-- ===== /WIDGET ===== -->
+
+  <script src="assets/cdans-data.js"></script>
+  <script src="assets/cdans-app.js"></script>
+</body>
+</html>
