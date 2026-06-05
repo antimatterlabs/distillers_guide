@@ -28,6 +28,7 @@
   var ICON = {
     pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
     nav: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>',
+    profile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M8 7h8M8 11h6"/></svg>',
     route: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2.4"/><circle cx="18" cy="5" r="2.4"/><path d="M8 19h6a4 4 0 004-4V9M6 16.6V9a4 4 0 014-4h6"/></svg>'
   };
   var CAT_LABEL = { hike: "Trail / Nature", stay: "Stay", scenic: "Sightseeing", food: "Food & Drink" };
@@ -37,8 +38,11 @@
   var starMarkers = {};      // slug -> L.marker
   var poiLayer = L.layerGroup();
   var routeLayer = L.layerGroup();
+  var tourLayer = L.layerGroup();
   var activeSlug = null;
   var editMode = false;
+  var tourActive = false;
+  var tourControlNodes = null;
   var overviewZoom = null;
   var mapMaskCtx = null;
   var Z_OTHER_MARKER = 500;
@@ -91,9 +95,9 @@
     var R = 6371; // Earth radius in km
     var dLat = (lat2 - lat1) * Math.PI / 180;
     var dLon = (lon2 - lon1) * Math.PI / 180;
-    var a = 
+    var a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
       Math.sin(dLon / 2) * Math.sin(dLon / 2);
     var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
@@ -177,12 +181,28 @@
       y: geoProjector.y[0] * p.lng + geoProjector.y[1] * p.lat + geoProjector.y[2]
     };
   }
+  function projectPoiPixel(p, d) {
+    if (!geoProjector || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return null;
+    if (!d) return projectGeoPixel(p);
+
+    var c = pxOf(d);
+    var dLat = p.lat - d.lat;
+    var dLng = p.lng - d.lng;
+
+    var pdx = geoProjector.x[0] * dLng + geoProjector.x[1] * dLat;
+    var pdy = geoProjector.y[0] * dLng + geoProjector.y[1] * dLat;
+
+    return {
+      x: c.x + pdx,
+      y: c.y + pdy
+    };
+  }
   function explicitPoiPixel(p) {
     if (Number.isFinite(p.mapX) && Number.isFinite(p.mapY)) return { x: p.mapX, y: p.mapY };
     return null;
   }
-  function basePoiPixel(p) {
-    return projectGeoPixel(p) || explicitPoiPixel(p);
+  function basePoiPixel(p, d) {
+    return explicitPoiPixel(p) || projectPoiPixel(p, d);
   }
   function isLandPoint(point) {
     if (!mapMaskCtx) return true;
@@ -273,82 +293,22 @@
   function layoutPoiPixels(d) {
     var c = pxOf(d);
     var n = d.pois.length;
-    var placed = [];
 
     return d.pois.map(function (p, i) {
-      var base = basePoiPixel(p) || fallbackPoiPixel(d, i, n);
+      var base = basePoiPixel(p, d) || fallbackPoiPixel(d, i, n);
       var direct = { x: clamp(base.x, 24, W - 24), y: clamp(base.y, 24, H - 24) };
-      var directDistance = dist(c, direct);
-      
-      // Calculate the actual geographic direction of the POI relative to the distillery
-      var projD = projectGeoPixel(d) || c;
-      var dx = direct.x - projD.x;
-      var dy = direct.y - projD.y;
-      var actualAngleRad = Math.atan2(dy, dx);
-      var actualAngleDeg = actualAngleRad * 180 / Math.PI;
 
-      var baseAngleDeg = actualAngleDeg;
-      if (Number.isFinite(p.calloutAngle)) {
-        baseAngleDeg = p.calloutAngle;
-      }
-
-      var candidates = [];
-      
-      // Try direct placement first if it's outside the distillery star's footprint
-      if (!nearOtherDistillery(d, direct)) {
-        if (directDistance >= 20 && directDistance <= 120) {
-          candidates.push(direct);
-        }
-      }
-
-      // Generate sweep positions centered around the actual relative angle
-      var radii = [20, 28, 38, 48, 60, 76];
-      if (Number.isFinite(p.calloutRadius)) {
-        radii.unshift(p.calloutRadius);
-      }
-      var angleOffsets = [0, -20, 20, -45, 45, -70, 70, -100, 100, -135, 135, 180];
-
-      radii.forEach(function (radius) {
-        angleOffsets.forEach(function (offset) {
-          candidates.push(radialPixel(d, radius, baseAngleDeg + offset));
-        });
-      });
-
-      // Last-resort fallback for very close or narrow coastal locations
-      if (!nearOtherDistillery(d, direct) && directDistance < 20) {
-        candidates.push(direct);
-      }
-
-      for (var ci = 0; ci < candidates.length; ci++) {
-        var candidate = candidates[ci];
-        if (overlapsPlaced(candidate, placed)) continue;
-
-        // Check if the candidate is on land.
-        // We only bypass the land check if this is the absolute final fallback point (direct).
-        if (!isLandPoint(candidate)) {
-          if (candidate === direct && ci === candidates.length - 1) {
-            // allow direct coordinate even if it falls near water, as it's the handcrafted location
-          } else {
-            continue;
-          }
-        }
-
-        var item = {
-          point: candidate,
-          drawRoute: dist(c, candidate) <= 120
-        };
-        placed.push(item);
-        return item;
-      }
-
-      return { hidden: false, point: direct, drawRoute: false };
+      return {
+        point: direct,
+        drawRoute: dist(c, direct) <= 120
+      };
     });
   }
   function focusDistillery(d) {
     var c = pxOf(d);
     var target = P(c.x, c.y);
     var currentZoom = map.getZoom();
-    var focusZoom = (overviewZoom == null ? currentZoom : overviewZoom + 0.95);
+    var focusZoom = (overviewZoom == null ? currentZoom : overviewZoom + 1.8);
     var targetZoom = Math.max(currentZoom, focusZoom);
 
     stopSmoothWheelZoom();
@@ -373,16 +333,16 @@
       mapResizeFrame = null;
       if (!map) return;
       map.invalidateSize({ pan: false, animate: false });
-      
+
       var currentZoom = map.getZoom();
       var fitZoom = map.getBoundsZoom(bounds);
       overviewZoom = fitZoom;
       map.setMinZoom(fitZoom);
-      
+
       if (currentZoom < fitZoom) {
         map.setZoom(fitZoom);
       }
-      
+
       updateMapElements();
     });
   }
@@ -475,21 +435,85 @@
     if (parts.length === 2) return parts[0];
     return addr;
   }
-  function gmapsDir(destLat, destLng, originLat, originLng) {
-    var u = "https://www.google.com/maps/dir/?api=1&destination=" + destLat + "," + destLng;
-    if (originLat != null) u += "&origin=" + originLat + "," + originLng;
+  function gmapsDir(destName, destAddr, originName, originAddr) {
+    var dest = encodeURIComponent(destName + (destAddr ? ", " + destAddr : ""));
+    var u = "https://www.google.com/maps/dir/?api=1&destination=" + dest;
+    if (originName) {
+      var orig = encodeURIComponent(originName + (originAddr ? ", " + originAddr : ""));
+      u += "&origin=" + orig;
+    }
     return u;
   }
+  function poiMapQuery(p, d) {
+    return p.mapQuery || (p.name + ", " + town(d.address) + ", Nova Scotia");
+  }
+  function poiGmapsDir(p, d) {
+    return gmapsDir(p.mapQuery || p.name, p.mapQuery ? "" : town(d.address) + ", Nova Scotia", d.name, d.address);
+  }
   function gmapsTrip(d) {
-    var url = "https://www.google.com/maps/dir/?api=1&origin=" + d.lat + "," + d.lng;
-    if (!d.pois.length) return url + "&destination=" + d.lat + "," + d.lng;
+    var origin = encodeURIComponent(d.name + ", " + d.address);
+    var url = "https://www.google.com/maps/dir/?api=1&origin=" + origin;
+    if (!d.pois.length) return url + "&destination=" + origin;
+
     var last = d.pois[d.pois.length - 1];
-    url += "&destination=" + last.lat + "," + last.lng;
+    var dest = encodeURIComponent(poiMapQuery(last, d));
+    url += "&destination=" + dest;
+
     if (d.pois.length > 1) {
-      var wp = d.pois.slice(0, -1).map(function (p) { return p.lat + "," + p.lng; }).join("|");
+      var wp = d.pois.slice(0, -1).map(function (p) {
+        return poiMapQuery(p, d);
+      }).join("|");
       url += "&waypoints=" + encodeURIComponent(wp);
     }
     return url;
+  }
+  function orderedDistilleries() {
+    var byNum = {};
+    var used = {};
+    var stops = [];
+
+    D.forEach(function (d) {
+      byNum[d.num] = d;
+    });
+
+    (Array.isArray(DATA.tourOrder) ? DATA.tourOrder : []).forEach(function (num) {
+      var d = byNum[num];
+      if (!d || used[d.num]) return;
+
+      used[d.num] = true;
+      stops.push(d);
+    });
+
+    D.slice().sort(function (a, b) { return a.num - b.num; }).forEach(function (d) {
+      if (used[d.num]) return;
+
+      used[d.num] = true;
+      stops.push(d);
+    });
+
+    return stops;
+  }
+  function distilleryMapQuery(d) {
+    return d.name + ", " + d.address;
+  }
+  function gmapsRouteUrl(stops) {
+    if (!stops.length) return "https://www.google.com/maps";
+    if (stops.length === 1) return gmapsDir(stops[0].name, stops[0].address);
+
+    var origin = encodeURIComponent(distilleryMapQuery(stops[0]));
+    var destination = encodeURIComponent(distilleryMapQuery(stops[stops.length - 1]));
+    var url = "https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=" + origin + "&destination=" + destination;
+
+    if (stops.length > 2) {
+      var waypoints = stops.slice(1, -1).map(distilleryMapQuery).join("|");
+      url += "&waypoints=" + encodeURIComponent(waypoints);
+    }
+
+    return url;
+  }
+  function gmapsFullTourLegs() {
+    var stops = orderedDistilleries();
+    return [{ label: "Open full tour in Google Maps", url: gmapsRouteUrl(stops) }];
   }
   function poiBlurb(p) {
     var copy = {
@@ -499,6 +523,80 @@
       food: "A nearby food or drink stop for building a fuller day around the tasting."
     };
     return copy[p.cat] || "A nearby stop worth adding to this part of the guide.";
+  }
+  function profileParagraphs(d) {
+    if (Array.isArray(d.profile) && d.profile.length) return d.profile;
+    if (d.profile) return [d.profile];
+
+    return [
+      d.desc,
+      "This expanded profile area can hold the maker story, signature bottles, tasting-room details, tour notes, seasonal hours, and booking information for " + d.name + "."
+    ];
+  }
+  function profileModalMarkup(d) {
+    var paragraphs = profileParagraphs(d).map(function (copy) {
+      return "<p>" + copy + "</p>";
+    }).join("");
+
+    return '<div class="cdans_profile_scrim" data-profile-close></div>' +
+      '<article class="cdans_profile_dialog" role="dialog" aria-modal="true" aria-labelledby="cdans_profile_title">' +
+        '<div class="cdans_profile_hero">' +
+          '<img class="cdans_profile_image" src="' + detailImage(d) + '" alt="' + d.name + '">' +
+          '<button class="cdans_profile_close" type="button" aria-label="Close full profile" data-profile-close>&times;</button>' +
+        "</div>" +
+        '<div class="cdans_profile_body">' +
+          '<div class="cdans_profile_heading">' +
+            '<div class="cdans_detail_badge">' + starAsset("cdans_detail_badge_star") +
+              '<span class="cdans_detail_badge_num">' + d.num + "</span></div>" +
+            '<div class="cdans_detail_heading_text">' +
+              '<div id="cdans_profile_title" class="cdans_profile_title">' + d.name + "</div>" +
+              '<div class="cdans_detail_town">' + town(d.address) + "</div>" +
+            "</div>" +
+          "</div>" +
+          '<div class="cdans_profile_copy">' + paragraphs + "</div>" +
+          '<div class="cdans_profile_actions">' +
+            '<a class="cdans_btn" target="_blank" rel="noopener" href="' + gmapsDir(d.name, d.address) + '">' +
+              ICON.nav + " Get directions</a>" +
+          "</div>" +
+        "</div>" +
+      "</article>";
+  }
+  function ensureProfileModal() {
+    var modal = document.getElementById("cdans_profile_modal");
+    if (modal) return modal;
+
+    modal = el("div", "cdans_profile_modal");
+    modal.id = "cdans_profile_modal";
+    modal.hidden = true;
+
+    modal.addEventListener("click", function (e) {
+      if (e.target.closest("[data-profile-close]")) closeProfileModal();
+    });
+
+    document.getElementById("cdans_app").appendChild(modal);
+    return modal;
+  }
+  function openProfileModal(d) {
+    var modal = ensureProfileModal();
+    modal.innerHTML = profileModalMarkup(d);
+    modal.hidden = false;
+    window.requestAnimationFrame(function () {
+      modal.classList.add("is-open");
+      var close = modal.querySelector(".cdans_profile_close");
+      if (close) close.focus();
+    });
+  }
+  function closeProfileModal() {
+    var modal = document.getElementById("cdans_profile_modal");
+    if (!modal) return;
+
+    modal.classList.remove("is-open");
+    modal.hidden = true;
+  }
+  function bindProfileModalKeys() {
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeProfileModal();
+    });
   }
 
   /* --- Markers -------------------------------------------------------------- */
@@ -516,6 +614,134 @@
     var html = '<div class="cdans_poi cat-' + p.cat + '">' + catAsset(p.cat, "cdans_poi_img") + "</div>";
     return L.divIcon({ html: html, className: "cdans_divicon", iconSize: [36, 36], iconAnchor: [18, 18] });
   }
+  /* --- Full tour route ------------------------------------------------------ */
+  function drawFullTourOverlay() {
+    tourLayer.clearLayers();
+    if (!tourActive) return;
+
+    var stops = orderedDistilleries();
+    var points = stops.map(function (d) {
+      var c = pxOf(d);
+      return P(c.x, c.y);
+    });
+
+    if (points.length > 1) {
+      L.polyline(points, {
+        color: "#ffffff",
+        weight: 7,
+        opacity: 0.68,
+        lineCap: "round",
+        lineJoin: "round",
+        interactive: false,
+        className: "cdans_full_tour_path_shadow"
+      }).addTo(tourLayer);
+
+      L.polyline(points, {
+        color: DATA.brand.star,
+        weight: 3.2,
+        opacity: 0.9,
+        dashArray: "9 8",
+        lineCap: "round",
+        lineJoin: "round",
+        interactive: false,
+        className: "cdans_full_tour_path"
+      }).addTo(tourLayer);
+    }
+
+  }
+  function setFullTourActive(active) {
+    tourActive = !!active;
+
+    if (tourControlNodes) {
+      tourControlNodes.wrap.classList.toggle("is-active", tourActive);
+      tourControlNodes.button.classList.toggle("is-active", tourActive);
+      tourControlNodes.button.setAttribute("aria-expanded", tourActive ? "true" : "false");
+      tourControlNodes.button.setAttribute("aria-pressed", tourActive ? "true" : "false");
+      tourControlNodes.panel.hidden = !tourActive;
+      renderFullTourLinks(tourControlNodes.links);
+    }
+
+    if (tourActive) {
+      activeLayers.distillery = true;
+      buildLegend();
+      buildList();
+      drawFullTourOverlay();
+      map.fitBounds(bounds, {
+        animate: true,
+        duration: 0.55,
+        padding: [22, 22]
+      });
+    } else {
+      tourLayer.clearLayers();
+    }
+
+    updateMapElements();
+  }
+  function renderFullTourLinks(container) {
+    if (!container) return;
+
+    container.innerHTML = "";
+    gmapsFullTourLegs().forEach(function (leg) {
+      var link = el("a", "cdans_tour_link", ICON.nav + "<span>" + leg.label + "</span>");
+      link.href = leg.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      container.appendChild(link);
+    });
+  }
+  function buildFullTourControl() {
+    var control = L.control({ position: "bottomright" });
+
+    control.onAdd = function () {
+      var wrap = el("div", "cdans_tour_control leaflet-control");
+      var panel = el("div", "cdans_tour_panel");
+      var close = el("button", "cdans_tour_close", "&times;");
+      var button = el("button", "cdans_tour_btn", ICON.route + "<span>Full tour</span>");
+      var links = el("div", "cdans_tour_links");
+
+      close.type = "button";
+      close.setAttribute("aria-label", "Hide full tour");
+
+      panel.hidden = true;
+      panel.appendChild(close);
+      panel.appendChild(el("div", "cdans_tour_kicker", "Full route"));
+      panel.appendChild(el("div", "cdans_tour_title", D.length + "-stop distillery tour"));
+      panel.appendChild(el("div", "cdans_tour_meta", "Numbered guide order"));
+      renderFullTourLinks(links);
+      panel.appendChild(links);
+
+      button.type = "button";
+      button.setAttribute("aria-expanded", "false");
+      button.setAttribute("aria-pressed", "false");
+      button.setAttribute("aria-label", "Show full distillery tour");
+
+      wrap.appendChild(panel);
+      wrap.appendChild(button);
+
+      L.DomEvent.disableClickPropagation(wrap);
+      L.DomEvent.disableScrollPropagation(wrap);
+
+      button.addEventListener("click", function (e) {
+        L.DomEvent.stop(e);
+        setFullTourActive(!tourActive);
+      });
+      close.addEventListener("click", function (e) {
+        L.DomEvent.stop(e);
+        setFullTourActive(false);
+      });
+
+      tourControlNodes = {
+        wrap: wrap,
+        panel: panel,
+        button: button,
+        links: links
+      };
+
+      return wrap;
+    };
+
+    return control;
+  }
 
   /* --- POIs + routes for all distilleries ----------------------------------- */
   function updateMapElements() {
@@ -532,6 +758,7 @@
           var mk = node.querySelector(".cdans_marker");
           if (mk) {
             mk.classList.toggle("is-active", s === activeSlug);
+            mk.classList.toggle("is-tour-stop", tourActive);
           }
         }
       } else {
@@ -566,8 +793,8 @@
           if (p.layoutDrawRoute && activeLayers.distillery && isParentActive) {
             L.polyline([start, end], {
               color: DATA.brand.star,
-              weight: 4,
-              opacity: 0.95,
+              weight: 2.6,
+              opacity: 0.58,
               dashArray: "7 8",
               lineCap: "round",
               interactive: false,
@@ -579,8 +806,10 @@
           var m = L.marker(end, {
             icon: makePoiIcon(p),
             riseOnHover: true,
-            zIndexOffset: isParentActive ? Z_ACTIVE_POI + 100 : Z_ACTIVE_POI
+            zIndexOffset: isParentActive ? Z_ACTIVE_POI + 100 : Z_ACTIVE_POI,
+            draggable: editMode
           });
+          m.on("dragend", function () { commitPoiDrag(p, m); });
 
           var distStr = poiDistanceStr(p);
           m.bindPopup(
@@ -588,7 +817,7 @@
             '<div class="cdans_pop_cat">' + (CAT_LABEL[p.cat] || p.cat) + "</div>" +
             (distStr ? '<div class="cdans_pop_dist">' + distStr + '</div>' : '') +
             '<a class="cdans_poi_link" target="_blank" rel="noopener" href="' +
-              gmapsDir(p.lat, p.lng, d.lat, d.lng) + '">Directions &rarr;</a>'
+              poiGmapsDir(p, d) + '">Directions &rarr;</a>'
           );
 
           m.on("click", function () {
@@ -655,7 +884,7 @@
           '<div class="cdans_poi_card_actions">' +
             visit +
             '<a class="cdans_poi_action" target="_blank" rel="noopener" href="' +
-              gmapsDir(p.lat, p.lng, d.lat, d.lng) + '">Directions</a>' +
+              poiGmapsDir(p, d) + '">Directions</a>' +
           "</div>" +
         "</div>" +
       "</article>";
@@ -689,8 +918,10 @@
           "</div>" +
         "</div>" +
         '<p class="cdans_desc">' + d.desc + "</p>" +
+        '<button class="cdans_btn cdans_btn_profile" type="button">' +
+          ICON.profile + " Read full profile</button>" +
         '<div class="cdans_addr">' + ICON.pin.replace("currentColor", DATA.brand.star) + "<span>" + d.address + "</span></div>" +
-        '<a class="cdans_btn" target="_blank" rel="noopener" href="' + gmapsDir(d.lat, d.lng) + '">' +
+        '<a class="cdans_btn" target="_blank" rel="noopener" href="' + gmapsDir(d.name, d.address) + '">' +
           ICON.nav + " Get directions</a>" +
         renderPoiCards(d) +
       "</div>";
@@ -699,6 +930,7 @@
     document.getElementById("cdans_app").classList.add("is-detail-open");
     resizeMapSoon();
     panel.querySelector(".cdans_detail_close").addEventListener("click", closeDetail);
+    panel.querySelector(".cdans_btn_profile").addEventListener("click", function () { openProfileModal(d); });
     return wasOpen;
   }
   function closeDetail() {
@@ -717,7 +949,166 @@
     PX[d.slug] = [Math.round(ll.lng), Math.round(H - ll.lat)];
     document.getElementById("cdans_editbar").querySelector(".cdans_editbar_txt").textContent =
       d.name + ": [" + PX[d.slug][0] + ", " + PX[d.slug][1] + "]";
+    if (tourActive) drawFullTourOverlay();
     if (activeSlug === d.slug) updateMapElements();
+  }
+  function commitPoiDrag(p, marker) {
+    var ll = marker.getLatLng();
+    p.mapX = Math.round(ll.lng);
+    p.mapY = Math.round(H - ll.lat);
+    p.calloutAngle = undefined;
+    p.calloutRadius = undefined;
+
+    document.getElementById("cdans_editbar").querySelector(".cdans_editbar_txt").textContent =
+      p.name + ": mapX " + p.mapX + ", mapY " + p.mapY;
+
+    initializePoiLayouts();
+    updateMapElements();
+  }
+  function jsString(value) {
+    return JSON.stringify(value == null ? "" : String(value));
+  }
+  function jsNumber(value) {
+    if (!Number.isFinite(value)) return "null";
+    return String(Math.round(value * 1000000) / 1000000);
+  }
+  function copyText(text, output) {
+    var copied = false;
+
+    if (output) {
+      output.value = text;
+      output.classList.add("is-on");
+      output.focus();
+      output.select();
+      try {
+        copied = document.execCommand("copy");
+      } catch (e) {
+        copied = false;
+      }
+    }
+
+    if (!copied && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {});
+    }
+  }
+  function formatPoiForData(p) {
+    var fields = [
+      "name: " + jsString(p.name),
+      "cat: " + jsString(p.cat),
+      "lat: " + jsNumber(p.lat),
+      "lng: " + jsNumber(p.lng)
+    ];
+
+    if (Number.isFinite(p.mapX)) fields.push("mapX: " + Math.round(p.mapX));
+    if (Number.isFinite(p.mapY)) fields.push("mapY: " + Math.round(p.mapY));
+    if (Number.isFinite(p.calloutAngle)) fields.push("calloutAngle: " + jsNumber(p.calloutAngle));
+    if (Number.isFinite(p.calloutRadius)) fields.push("calloutRadius: " + jsNumber(p.calloutRadius));
+    if (typeof p.approx === "boolean") fields.push("approx: " + (p.approx ? "true" : "false"));
+    if (p.mapQuery) fields.push("mapQuery: " + jsString(p.mapQuery));
+    if (p.url !== undefined) fields.push("url: " + (p.url ? jsString(p.url) : "null"));
+
+    return "        { " + fields.join(", ") + " }";
+  }
+  function formatPixelsBlock() {
+    var lines = ["  pixels: {"];
+    D.forEach(function (d, i) {
+      var p = PX[d.slug] || [W / 2, H / 2];
+      lines.push("    " + jsString(d.slug) + ": [" + Math.round(p[0]) + ", " + Math.round(p[1]) + "]" + (i === D.length - 1 ? "" : ","));
+    });
+    lines.push("  },");
+    return lines.join("\n");
+  }
+  function formatTourOrderBlock() {
+    var order = orderedDistilleries().map(function (d) { return d.num; });
+    return "  tourOrder: [" + order.join(", ") + "],";
+  }
+  function formatBrandBlock() {
+    return [
+      "  brand: {",
+      "    ocean: " + jsString(DATA.brand.ocean) + ",",
+      "    land: " + jsString(DATA.brand.land) + ",",
+      "    star: " + jsString(DATA.brand.star) + ",",
+      "    ink: " + jsString(DATA.brand.ink),
+      "  },"
+    ].join("\n");
+  }
+  function formatBasemapBlock() {
+    var lines = [
+      "  basemap: {",
+      "    url: " + jsString(BM.url) + ",",
+      "    w: " + jsNumber(BM.w) + ",",
+      "    h: " + jsNumber(BM.h)
+    ];
+
+    if (BM.maskUrl) {
+      lines[lines.length - 1] += ",";
+      lines.push("    maskUrl: " + jsString(BM.maskUrl));
+    }
+    if (BM.decorations && BM.decorations.url) {
+      lines[lines.length - 1] += ",";
+      lines.push(
+        "    decorations: {",
+        "      url: " + jsString(BM.decorations.url) + ",",
+        "      scale: " + jsNumber(BM.decorations.scale || 1) + ",",
+        "      offsetX: " + jsNumber(BM.decorations.offsetX || 0) + ",",
+        "      offsetY: " + jsNumber(BM.decorations.offsetY || 0) + ",",
+        "      opacity: " + jsNumber(BM.decorations.opacity == null ? 1 : BM.decorations.opacity),
+        "    }"
+      );
+    }
+
+    lines.push("  },");
+    return lines.join("\n");
+  }
+  function formatDistilleryForData(d, isLast) {
+    var lines = [
+      "    {",
+      "      num: " + d.num + ", slug: " + jsString(d.slug) + ", name: " + jsString(d.name) + ",",
+      "      lat: " + jsNumber(d.lat) + ", lng: " + jsNumber(d.lng) + ",",
+      "      address: " + jsString(d.address) + ",",
+      "      image: " + jsString(d.image) + ",",
+      "      cardImage: " + jsString(d.cardImage) + ",",
+      "      desc: " + jsString(d.desc) + ",",
+      "      pois: ["
+    ];
+
+    d.pois.forEach(function (p, i) {
+      lines.push(formatPoiForData(p) + (i === d.pois.length - 1 ? "" : ","));
+    });
+    lines.push("      ]");
+    lines.push("    }" + (isLast ? "" : ","));
+    return lines.join("\n");
+  }
+  function formatFullDataFile() {
+    var lines = [
+      "/* =============================================================================",
+      " * CDANS Distillery Guide — Data",
+      " * -----------------------------------------------------------------------------",
+      " * Edit mode can export this full file. Replace assets/cdans-data.js with the",
+      " * copied output so illustrated-map pixel positions stay in sync.",
+      " * ========================================================================== */",
+      "",
+      "window.CDANS_DATA = {",
+      formatBrandBlock(),
+      "",
+      "  /* Flat brand basemap (NS silhouette, stars stripped) + natural size. */",
+      formatBasemapBlock(),
+      "",
+      "  /* slug -> [px, py] pixel position on the basemap (top-left origin) */",
+      formatPixelsBlock(),
+      "",
+      "  /* Distillery nums in driving-tour order. */",
+      formatTourOrderBlock(),
+      "",
+      "  distilleries: ["
+    ];
+
+    D.forEach(function (d, i) {
+      lines.push(formatDistilleryForData(d, i === D.length - 1));
+    });
+    lines.push("  ]");
+    lines.push("};");
+    return lines.join("\n");
   }
   function toggleEdit() {
     editMode = !editMode;
@@ -727,13 +1118,39 @@
       var m = starMarkers[s];
       if (editMode) { m.dragging.enable(); } else { m.dragging.disable(); }
     });
+    poiLayer.eachLayer(function (layer) {
+      if (layer instanceof L.Marker) {
+        if (editMode) { layer.dragging.enable(); } else { layer.dragging.disable(); }
+      }
+    });
   }
   function copyCoords() {
-    var txt = JSON.stringify(PX, null, 2);
-    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+    var txt = formatFullDataFile();
+    var output = document.getElementById("cdans_editoutput");
+    copyText(txt, output);
     document.getElementById("cdans_editbar").querySelector(".cdans_editbar_txt").textContent =
-      "Copied all pixel positions to clipboard.";
-    console.log("CDANS pixel positions:\n", txt);
+      "Copied full cdans-data.js. Replace the whole file with this export.";
+    console.log("CDANS full data file export:\n" + txt);
+  }
+  function revealEditButton(focusButton) {
+    var btn = document.getElementById("cdans_editbtn");
+    if (!btn) return;
+
+    btn.classList.remove("is-concealed");
+    if (focusButton) btn.focus();
+  }
+  function isTypingTarget(target) {
+    var tag = target && target.tagName ? target.tagName.toLowerCase() : "";
+    return tag === "input" || tag === "textarea" || tag === "select" || !!(target && target.isContentEditable);
+  }
+  function bindEditorShortcut() {
+    document.addEventListener("keydown", function (e) {
+      var key = e.key ? e.key.toLowerCase() : "";
+      if (key !== "e" || !e.shiftKey || !(e.metaKey || e.ctrlKey) || isTypingTarget(e.target)) return;
+
+      e.preventDefault();
+      revealEditButton(true);
+    });
   }
 
   /* --- Sidebar list + legend ------------------------------------------------ */
@@ -911,7 +1328,7 @@
       zoomSnap: 0,
       zoomDelta: 0.45,
       minZoom: -1.5,
-      maxZoom: 3,
+      maxZoom: 6,
       inertia: true,
       inertiaDeceleration: 2600,
       inertiaMaxSpeed: 900,
@@ -932,8 +1349,10 @@
     map.setMinZoom(overviewZoom);
     map.setMaxBounds(bounds); // Lock completely to illustration bounds, no padding!
 
+    tourLayer.addTo(map);
     routeLayer.addTo(map);
     poiLayer.addTo(map);
+    buildFullTourControl().addTo(map);
 
     map.on("zoomend", function () {
       if (!smoothWheelActive) updateMapElements();
@@ -954,6 +1373,8 @@
 
     document.getElementById("cdans_editbtn").addEventListener("click", toggleEdit);
     document.getElementById("cdans_editcopy").addEventListener("click", copyCoords);
+    bindEditorShortcut();
+    bindProfileModalKeys();
 
     // 6. Prime first selection but keep details closed
     selectDistillery(D[0].slug, false);

@@ -1,113 +1,55 @@
 /* =============================================================================
  * CDANS Distillery Guide — Data
  * -----------------------------------------------------------------------------
- * 17 certified Nova Scotia distilleries (numbered to match the printed map),
- * each with a description (OCR'd from the print guide), street address,
- * product/bottle image, and "associate member" branch spots (POIs) that link
- * out from the guide.
- *
- * COORDINATES NOTE: distillery coords are derived from their street address and
- * are accurate to the town/block. POI coords are best-estimate placements and
- * are flagged `approx:true`. Use the built-in Editor mode (button in the
- * sidebar header) to drag any marker and copy back exact coords.
- *
- * POI categories drive the legend + icons:
- *   hike   = trail / park / nature       (hiking icon)
- *   stay   = hotel / inn / B&B / Airbnb  (bed icon)
- *   scenic = lookoff / museum / landmark (camera icon)
- *   food   = cafe / restaurant / market  (cup icon)
+ * Edit mode can export this full file. Replace assets/cdans-data.js with the
+ * copied output so illustrated-map pixel positions stay in sync.
  * ========================================================================== */
 
 window.CDANS_DATA = {
-  brand: {"ocean":"#005166","land":"#cdc5b6","star":"#b8893f","ink":"#1c2b30"},
+  brand: {
+    ocean: "#005166",
+    land: "#cdc5b6",
+    star: "#b8893f",
+    ink: "#1c2b30"
+  },
 
-  /* Flat brand basemap (NS silhouette, stars stripped) + its natural size.
-   * Markers are positioned in image-pixel space (px,py from top-left) so they
-   * sit exactly where the printed map's numbered stars were. */
+  /* Flat brand basemap (NS silhouette, stars stripped) + natural size. */
   basemap: {
-    "url": "assets/map-base.svg",
-    "w": 825,
-    "h": 311,
-    "decorations": {
-        "url": "assets/map-background-icons.svg",
-        "scale": 1,
-        "offsetX": 22,
-        "offsetY": 0,
-        "opacity": 0.95
+    url: "assets/map-base.svg",
+    w: 825,
+    h: 311,
+    decorations: {
+      url: "assets/map-background-icons.svg",
+      scale: 1,
+      offsetX: 22,
+      offsetY: 0,
+      opacity: 0.95
     }
-},
+  },
 
   /* slug -> [px, py] pixel position on the basemap (top-left origin) */
   pixels: {
-    "boatskeg": [
-        90,
-        267
-    ],
-    "still-fired": [
-        140,
-        148
-    ],
-    "barrelling-tide": [
-        284,
-        124
-    ],
-    "james-roue": [
-        317,
-        147
-    ],
-    "cherry-tree": [
-        300,
-        146
-    ],
-    "ironworks": [
-        260,
-        222
-    ],
-    "compass": [
-        339,
-        213
-    ],
-    "coldstream": [
-        391,
-        131
-    ],
-    "caldera": [
-        444,
-        95
-    ],
-    "steinhart": [
-        515,
-        132
-    ],
-    "below-the-salt": [
-        578,
-        160
-    ],
-    "glenora": [
-        619,
-        95
-    ],
-    "black-harbour": [
-        281,
-        202
-    ],
-    "north-mountain": [
-        306,
-        193
-    ],
-    "good-robot": [
-        322,
-        222
-    ],
-    "raging-crow": [
-        485,
-        134
-    ],
-    "ns-spirit": [
-        477,
-        134
-    ]
-},
+    "boatskeg": [105, 261],
+    "still-fired": [143, 150],
+    "barrelling-tide": [277, 125],
+    "james-roue": [323, 149],
+    "cherry-tree": [300, 146],
+    "ironworks": [260, 222],
+    "compass": [339, 213],
+    "coldstream": [391, 131],
+    "caldera": [444, 95],
+    "steinhart": [513, 132],
+    "below-the-salt": [578, 160],
+    "glenora": [624, 99],
+    "black-harbour": [289, 195],
+    "north-mountain": [310, 187],
+    "good-robot": [322, 222],
+    "raging-crow": [252, 119],
+    "ns-spirit": [461, 125]
+  },
+
+  /* Distillery nums in driving-tour order. */
+  tourOrder: [1, 2, 16, 3, 5, 4, 6, 13, 14, 15, 7, 8, 9, 17, 10, 11, 12],
 
   distilleries: [
     {
@@ -118,9 +60,9 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/boatskeg.png",
       desc: "Just steps from the ocean in West Pubnico, enjoy a locally crafted drink at this boat shop-turned-cocktail bar and patio. The salted caramel vodka is a can't-miss specialty.",
       pois: [
-        { name: "Dennis Point Café", cat: "food", lat: 43.617881, lng: -65.788971, mapX: 72, mapY: 258, approx: true, url: "https://www.facebook.com/DennisPointCafe/?locale=fr_FR" },
-        { name: "West Pubnico Golf Course", cat: "scenic", lat: 43.626, lng: -65.743, mapX: 74, mapY: 256, approx: true, url: "https://www.westpubnicogolf.com/" },
-        { name: "Red Cap Restaurant & Motel", cat: "stay", lat: 43.63, lng: -65.756, mapX: 72, mapY: 255, approx: true, url: "https://redcaprestaurantandmotel.com/" }
+        { name: "Dennis Point Café", cat: "food", lat: 43.617881, lng: -65.788971, mapX: 100, mapY: 281, approx: true, url: "https://www.facebook.com/DennisPointCafe/?locale=fr_FR" },
+        { name: "West Pubnico Golf Course", cat: "scenic", lat: 43.626, lng: -65.743, mapX: 89, mapY: 245, approx: true, url: "https://www.westpubnicogolf.com/" },
+        { name: "Red Cap Restaurant & Motel", cat: "stay", lat: 43.63, lng: -65.756, mapX: 88, mapY: 262, approx: true, url: "https://redcaprestaurantandmotel.com/" }
       ]
     },
     {
@@ -131,9 +73,9 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/still-fired.png",
       desc: "Crafting small-batch spirits from Nova Scotia's first legally built stills, this Annapolis Royal team creates unique blends with local ingredients. Come in for a free sample and leave with a bottle.",
       pois: [
-        { name: "Whiskey Teller (next to Fortview Golf)", cat: "food", lat: 44.74534, lng: -65.518727, mapX: 111, mapY: 175, approx: true, url: null },
-        { name: "Mickey Hill Provincial Park Trail", cat: "hike", lat: 44.6222, lng: -65.3621, mapX: 138, mapY: 184, approx: true, url: "https://novascotia.com/listing/mickey-hill-provincial-park/" },
-        { name: "Fort Anne National Historic Site", cat: "scenic", lat: 44.741395, lng: -65.518791, mapX: 111, mapY: 176, approx: true, url: "https://novascotia.com/listing/fort-anne-national-historic-site/" }
+        { name: "Whiskey Teller (next to Fortview Golf)", cat: "food", lat: 44.74534, lng: -65.518727, mapX: 163, mapY: 144, approx: true, url: null },
+        { name: "Mickey Hill Provincial Park Trail", cat: "hike", lat: 44.6222, lng: -65.3621, mapX: 147, mapY: 183, approx: true, url: "https://novascotia.com/listing/mickey-hill-provincial-park/" },
+        { name: "Fort Anne National Historic Site", cat: "scenic", lat: 44.741395, lng: -65.518791, mapX: 124, mapY: 159, approx: true, url: "https://novascotia.com/listing/fort-anne-national-historic-site/" }
       ]
     },
     {
@@ -144,9 +86,9 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/barrelling-tide.png",
       desc: "Award-winning small-batch spirits and liqueurs crafted with local ingredients and thoughtful craftsmanship — where every tide has a story. Book a tour, enjoy a complimentary tasting, or try a cocktail flight!",
       pois: [
-        { name: "Fox Hill Cheese House", cat: "food", lat: 45.103, lng: -64.417, mapX: 295, mapY: 150, approx: true, url: "https://www.foxhillcheesehouse.com/" },
-        { name: "Blomidon Provincial Park", cat: "hike", lat: 45.28406, lng: -64.33416, mapX: 306, mapY: 139, approx: true, url: "https://parks.novascotia.ca/park/blomidon" },
-        { name: "Old Orchard Inn | Terroir Restaurant", cat: "stay", lat: 45.07397, lng: -64.402399, mapX: 310, mapY: 151, approx: true, url: "https://oldorchardinn.com/" }
+        { name: "Fox Hill Cheese House", cat: "food", lat: 45.103, lng: -64.417, mapX: 291, mapY: 125, approx: true, url: "https://www.foxhillcheesehouse.com/" },
+        { name: "Blomidon Provincial Park", cat: "hike", lat: 45.28406, lng: -64.33416, mapX: 296, mapY: 112, approx: true, url: "https://parks.novascotia.ca/park/blomidon" },
+        { name: "Old Orchard Inn | Terroir Restaurant", cat: "stay", lat: 45.07397, lng: -64.402399, mapX: 284, mapY: 135, approx: true, url: "https://oldorchardinn.com/" }
       ]
     },
     {
@@ -157,9 +99,9 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/james-roue.png",
       desc: "Blending tradition with innovation, Atlantic Canada's largest craft rum distillery delivers complex, layered flavours. Stop in for a tasting and discover their flagship Rum-Nova.",
       pois: [
-        { name: "Walkers Restaurant", cat: "food", lat: 44.988, lng: -64.136, mapX: 342, mapY: 158, approx: true, url: "https://www.walkersrestaurant.ca/" },
-        { name: "Clifton Museum Park Circular", cat: "scenic", lat: 44.988311, lng: -64.141849, mapX: 340, mapY: 158, approx: true, url: "https://clifton.novascotia.ca/" },
-        { name: "Birthplace of Hockey Museum", cat: "scenic", lat: 44.988867, lng: -64.142448, mapX: 341, mapY: 158, approx: true, url: "https://birthplaceofhockey.ca/" }
+        { name: "Walkers Restaurant", cat: "food", lat: 44.988, lng: -64.136, mapX: 324, mapY: 158, approx: true, url: "https://www.walkersrestaurant.ca/" },
+        { name: "Clifton Museum Park Circular", cat: "scenic", lat: 44.988311, lng: -64.141849, mapX: 333, mapY: 156, approx: true, url: "https://clifton.novascotia.ca/" },
+        { name: "Birthplace of Hockey Museum", cat: "scenic", lat: 44.988867, lng: -64.142448, mapX: 316, mapY: 156, approx: true, url: "https://birthplaceofhockey.ca/" }
       ]
     },
     {
@@ -170,9 +112,9 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/cherry-tree.png",
       desc: "With a vintage speakeasy vibe, this micro distillery and intimate tasting bar in Windsor features a variety of spirits and mixers. Try mini cocktail flights and enjoy a relaxed, jazz-filled atmosphere.",
       pois: [
-        { name: "Gerrish & Gray Café", cat: "food", lat: 44.99, lng: -64.139, mapX: 341, mapY: 158, approx: true, url: "https://www.gerrishandgray.ca/" },
-        { name: "Lake Pisiquid Loop", cat: "hike", lat: 44.994524, lng: -64.143993, mapX: 343, mapY: 159, approx: true, url: null },
-        { name: "Geldert Guest House B&B", cat: "stay", lat: 44.995, lng: -64.142, mapX: 341, mapY: 158, approx: true, url: "https://geldertguesthouse.com/" }
+        { name: "Gerrish & Gray Café", cat: "food", lat: 44.99, lng: -64.139, mapX: 302, mapY: 155, approx: true, url: "https://www.gerrishandgray.ca/" },
+        { name: "Lake Pisiquid Loop", cat: "hike", lat: 44.994524, lng: -64.143993, mapX: 285, mapY: 141, approx: true, url: null },
+        { name: "Geldert Guest House B&B", cat: "stay", lat: 44.995, lng: -64.142, mapX: 289, mapY: 152, approx: true, url: "https://geldertguesthouse.com/" }
       ]
     },
     {
@@ -183,9 +125,9 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/ironworks.png",
       desc: "Step inside Atlantic Canada's very first artisan distillery, founded in 2010 and located in an historic blacksmith shop overlooking Lunenburg's harbour. Come for a tour, stay for a tasting and see how our award-winning spirits are crafted.",
       pois: [
-        { name: "The Grand Banker", cat: "food", lat: 44.376, lng: -64.315, mapX: 312, mapY: 202, approx: true, url: "https://grandbanker.com/" },
-        { name: "Lunenburg Walking Tours", cat: "scenic", lat: 44.380098, lng: -64.313498, mapX: 312, mapY: 202, approx: true, url: "https://www.lunenburgwalkingtours.com/" },
-        { name: "Bluenose II", cat: "scenic", lat: 44.375, lng: -64.314, mapX: 312, mapY: 202, approx: true, url: "https://bluenose.novascotia.ca/" }
+        { name: "The Grand Banker", cat: "food", lat: 44.376, lng: -64.315, mapX: 249, mapY: 221, approx: true, url: "https://grandbanker.com/" },
+        { name: "Lunenburg Walking Tours", cat: "scenic", lat: 44.380098, lng: -64.313498, mapX: 264, mapY: 230, approx: true, url: "https://www.lunenburgwalkingtours.com/" },
+        { name: "Bluenose II", cat: "scenic", lat: 44.375, lng: -64.314, mapX: 254, mapY: 231, approx: true, url: "https://bluenose.novascotia.ca/" }
       ]
     },
     {
@@ -196,8 +138,8 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/compass.png",
       desc: "In Halifax's North End, a state-of-the-art distillery, cocktail bar, and Airbnb. Come meet Tess, our amazing still, and taste world-class spirits.",
       pois: [
-        { name: "Fort Needham Memorial Park", cat: "scenic", lat: 44.664833, lng: -63.600625, mapX: 432, mapY: 181, approx: true, url: "https://novascotia.com/listing/fort-needham-memorial-park/" },
-        { name: "Compass Tower Airbnb", cat: "stay", lat: 44.654755, lng: -63.592316, mapX: 433, mapY: 182, approx: true, url: "https://www.airbnb.ca/rooms/17407394" }
+        { name: "Fort Needham Memorial Park", cat: "scenic", lat: 44.664833, lng: -63.600625, mapX: 349, mapY: 208, approx: true, url: "https://novascotia.com/listing/fort-needham-memorial-park/" },
+        { name: "Compass Tower Airbnb", cat: "stay", lat: 44.654755, lng: -63.592316, mapX: 350, mapY: 198, approx: true, url: "https://www.airbnb.ca/rooms/17407394" }
       ]
     },
     {
@@ -208,7 +150,7 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/coldstream.png",
       desc: "Known for approachable, flavour-forward drinks, this family-owned brand offers tasting rooms at four locations with free samples and creative cocktail flights. Peach iced tea is a must-try.",
       pois: [
-        { name: "John Crawford Trail (Stewiacke)", cat: "hike", lat: 45.143, lng: -63.349, mapX: 473, mapY: 147, approx: true, url: "https://www.stewiacke.net/trails.html" }
+        { name: "John Crawford Trail (Stewiacke)", cat: "hike", lat: 45.143, lng: -63.349, mapX: 392, mapY: 162, approx: true, url: "https://www.stewiacke.net/trails.html" }
       ]
     },
     {
@@ -219,7 +161,7 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/caldera.png",
       desc: "Rooted in River John's shipbuilding heritage, this farm-to-bottle producer crafts small-batch rye whisky using grains grown on site. Meet the makers, explore the fields and settle in for a tasting.",
       pois: [
-        { name: "Megs Cove Beach Trail", cat: "hike", lat: 45.78, lng: -63.05, mapX: 523, mapY: 102, approx: true, url: null }
+        { name: "Megs Cove Beach Trail", cat: "hike", lat: 45.78, lng: -63.05, mapX: 432, mapY: 108, approx: true, url: null }
       ]
     },
     {
@@ -230,7 +172,7 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/steinhart.png",
       desc: "Crafted with real ingredients, these spirits reflect European tradition and local flavour. Visit for tastings and tours, or book the Ginstitute experience to create a gin uniquely your own.",
       pois: [
-        { name: "Keppoch Mountain Trail System", cat: "hike", lat: 45.499128, lng: -62.122193, mapX: 695, mapY: 118, approx: true, url: "https://www.thekeppoch.ca/" }
+        { name: "Keppoch Mountain Trail System", cat: "hike", lat: 45.499128, lng: -62.122193, mapX: 512, mapY: 153, approx: true, url: "https://www.thekeppoch.ca/" }
       ]
     },
     {
@@ -241,9 +183,9 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/below-the-salt.png",
       desc: "Tiny in size but big on character, Captain Gregg Distiller and First Mate Vicki serve up world-class spirits. Come for a taste, stay for the view, and leave with stories in a bottle.",
       pois: [
-        { name: "GH Smith & Sons General Store", cat: "food", lat: 45.62, lng: -61.36, mapX: 805, mapY: 114, approx: true, url: "https://www.facebook.com/p/Smith-G-H-Son-General-Store-100020686196817/" },
-        { name: "Port Hawkesbury Community Trails", cat: "hike", lat: 45.618085, lng: -61.357459, mapX: 805, mapY: 115, approx: true, url: "https://novascotia.com/listing/port-hawkesbury-community-trails/" },
-        { name: "Canso Causeway", cat: "scenic", lat: 45.647395, lng: -61.412923, mapX: 796, mapY: 112, approx: true, url: null }
+        { name: "GH Smith & Sons General Store", cat: "food", lat: 45.62, lng: -61.36, mapX: 608, mapY: 153, approx: true, url: "https://www.facebook.com/p/Smith-G-H-Son-General-Store-100020686196817/" },
+        { name: "Port Hawkesbury Community Trails", cat: "hike", lat: 45.618085, lng: -61.357459, mapX: 591, mapY: 165, approx: true, url: "https://novascotia.com/listing/port-hawkesbury-community-trails/" },
+        { name: "Canso Causeway", cat: "scenic", lat: 45.647395, lng: -61.412923, mapX: 580, mapY: 169, approx: true, url: null }
       ]
     },
     {
@@ -254,7 +196,7 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/glenora.png",
       desc: "Discover North America's first single malt whisky, rooted in Scottish tradition. Tour the site, sample the spirits and experience Cape Breton's rich Gaelic culture and Highland surroundings.",
       pois: [
-        { name: "MacKinnons Brook Trail", cat: "hike", lat: 46.13, lng: -61.42, mapX: 795, mapY: 78, approx: true, url: null }
+        { name: "MacKinnons Brook Trail", cat: "hike", lat: 46.13, lng: -61.42, mapX: 684, mapY: 50, approx: true, url: null }
       ]
     },
     {
@@ -265,9 +207,9 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/black-harbour.png",
       desc: "Bringing new life to a century-old schoolhouse in Hubbards, this distillery offers tastings, cocktails and lively patio events. Try out their lobster vodka, an unexpected local favourite.",
       pois: [
-        { name: "Hubbards Barn Farmers' Market", cat: "food", lat: 44.636027, lng: -64.068789, mapX: 354, mapY: 183, approx: true, url: "https://hubbardsbarn.org/" },
-        { name: "Aspotogan Golf Course", cat: "scenic", lat: 44.592452, lng: -64.084685, mapX: 360, mapY: 185, approx: true, url: "https://aspotoganridge.com/" },
-        { name: "The Tuna Blue Inn & Restaurant", cat: "stay", lat: 44.632, lng: -64.066, mapX: 354, mapY: 183, approx: true, url: "https://www.tunablue.ca/" }
+        { name: "Hubbards Barn Farmers' Market", cat: "food", lat: 44.636027, lng: -64.068789, mapX: 298, mapY: 189, approx: true, url: "https://hubbardsbarn.org/" },
+        { name: "Aspotogan Golf Course", cat: "scenic", lat: 44.592452, lng: -64.084685, mapX: 280, mapY: 200, approx: true, url: "https://aspotoganridge.com/" },
+        { name: "The Tuna Blue Inn & Restaurant", cat: "stay", lat: 44.632, lng: -64.066, mapX: 297, mapY: 201, approx: true, url: "https://www.tunablue.ca/" }
       ]
     },
     {
@@ -278,7 +220,7 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/north-mountain.png",
       desc: "Using traditional methods and modern touches, this family-run operation makes small-batch moonshine and spirits best enjoyed with friends. Swing by the store for a free sample.",
       pois: [
-        { name: "Pockwock Falls Trail", cat: "hike", lat: 44.7905, lng: -63.8422, mapX: 391, mapY: 172, approx: true, url: null }
+        { name: "Pockwock Falls Trail", cat: "hike", lat: 44.7905, lng: -63.8422, mapX: 299, mapY: 178, approx: true, url: null }
       ]
     },
     {
@@ -289,22 +231,22 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/good-robot.png",
       desc: "This iconic brewery (six-time winner of Best Craft Brewery) put Nova Scotia on the canned cocktail map with standout drinks like their agave-based Lil Devil (Jalapeño-Lime Hard Soda). Start your vacation off right at their Robie Street Pub & Beer Garden.",
       pois: [
-        { name: "Chain Yard Cider", cat: "food", lat: 44.655451, lng: -63.593937, mapX: 434, mapY: 182, approx: true, url: "https://www.chainyardcider.com/" },
-        { name: "Halifax Common", cat: "scenic", lat: 44.649293, lng: -63.589097, mapX: 434, mapY: 182, approx: true, url: "https://discoverhalifaxns.com/venues/halifax-commons/" },
-        { name: "Brewery Park Hotel", cat: "stay", lat: 44.659013, lng: -63.598441, mapX: 436, mapY: 182, approx: true, url: "https://brewerypark.ca/" }
+        { name: "Chain Yard Cider", cat: "food", lat: 44.655451, lng: -63.593937, mapX: 311, mapY: 214, approx: true, url: "https://www.chainyardcider.com/" },
+        { name: "Halifax Common", cat: "scenic", lat: 44.649293, lng: -63.589097, mapX: 318, mapY: 231, approx: true, url: "https://discoverhalifaxns.com/venues/halifax-commons/" },
+        { name: "Brewery Park Hotel", cat: "stay", lat: 44.659013, lng: -63.598441, mapX: 333, mapY: 226, approx: true, url: "https://brewerypark.ca/" }
       ]
     },
     {
       num: 16, slug: "raging-crow", name: "Raging Crow Distillery",
-      lat: 45.405502, lng: -63.267116,
-      address: "592 Highway 311, North River, NS, B6L 6G7",
+      lat: 45.162, lng: -64.413,
+      address: "969 Seminary Avenue, Canning, NS, B0P 1H0",
       image: "assets/actual-bottles/16.png",
       cardImage: "assets/bottles/raging-crow.png",
       desc: "This distillery showcases local ingredients in creative, small-batch spirits. Down-to-earth and proudly inclusive, it's a place to discover new flavours and feel right at home.",
       pois: [
-        { name: "The Long Table Social Club", cat: "food", lat: 45.162, lng: -64.413, mapX: 295, mapY: 146, approx: true, url: "https://www.thelongtablesocialclub.com/" },
-        { name: "Where It's At Tours", cat: "scenic", lat: 45.164, lng: -64.415, mapX: 295, mapY: 146, approx: true, url: "https://www.whereitsattours.com/" },
-        { name: "Two Planks and a Passion", cat: "scenic", lat: 45.18, lng: -64.42, mapX: 294, mapY: 145, approx: true, url: "https://artscentre.ca/two-planks/" }
+        { name: "The Long Table Social Club", cat: "food", lat: 45.162, lng: -64.413, mapX: 263, mapY: 130, approx: true, url: "https://www.thelongtablesocialclub.com/" },
+        { name: "Where It's At Tours", cat: "scenic", lat: 45.164, lng: -64.415, mapX: 249, mapY: 134, approx: true, mapQuery: "Wolfville, Nova Scotia", url: "https://www.whereitsattours.com/" },
+        { name: "Two Planks and a Passion", cat: "scenic", lat: 45.18, lng: -64.42, mapX: 235, mapY: 128, approx: true, url: "https://artscentre.ca/two-planks/" }
       ]
     },
     {
@@ -315,7 +257,7 @@ window.CDANS_DATA = {
       cardImage: "assets/bottles/ns-spirit.png",
       desc: "Small-town maritime culture shines through every sip, from their line of spirits to their popular Blue Lobster Lemon Lime Vodka Soda. Visit the Blue Lobster Public House for cocktails and local eats.",
       pois: [
-        { name: "Albion Trail", cat: "hike", lat: 45.566851, lng: -62.656847, mapX: 587, mapY: 118, approx: true, url: "https://novascotia.com/listing/albion-trail/" }
+        { name: "Albion Trail", cat: "hike", lat: 45.566851, lng: -62.656847, mapX: 461, mapY: 135, approx: true, url: "https://novascotia.com/listing/albion-trail/" }
       ]
     }
   ]
