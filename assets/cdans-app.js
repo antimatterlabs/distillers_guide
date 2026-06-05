@@ -15,6 +15,7 @@
   var BM = DATA.basemap;            // { url, w, h }
   var PX = DATA.pixels;             // slug -> [px, py]
   var W = BM.w, H = BM.h;
+  var bounds = [[0, 0], [H, W]];
 
   /* --- Asset-backed icons --------------------------------------------------- */
   var ICON_PATH = {
@@ -53,6 +54,15 @@
   var smoothWheelActive = false;
   var smoothWheelAnchor = null;
 
+  var activeTab = "distilleries";
+  var activeLayers = {
+    distillery: true,
+    hike: false,
+    stay: false,
+    scenic: false,
+    food: false
+  };
+
   /* --- Helpers -------------------------------------------------------------- */
   function el(tag, cls, html) {
     var e = document.createElement(tag);
@@ -76,6 +86,26 @@
     var dx = a.x - b.x;
     var dy = a.y - b.y;
     return Math.sqrt(dx * dx + dy * dy);
+  }
+  function haversineDistance(lat1, lon1, lat2, lon2) {
+    var R = 6371; // Earth radius in km
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+  function poiDistanceStr(p) {
+    if (!p.parent || !Number.isFinite(p.lat) || !Number.isFinite(p.lng) || !Number.isFinite(p.parent.lat) || !Number.isFinite(p.parent.lng)) {
+      return "";
+    }
+    var km = haversineDistance(p.parent.lat, p.parent.lng, p.lat, p.lng);
+    if (km < 0.1) return "steps away";
+    if (km < 1) return Math.round(km * 1000) + " m from distillery";
+    return km.toFixed(1) + " km from distillery";
   }
   function scaledMapBounds(opts) {
     opts = opts || {};
@@ -168,6 +198,17 @@
       return true;
     }
   }
+  function initializePoiLayouts() {
+    D.forEach(function (d) {
+      var layout = layoutPoiPixels(d);
+      d.pois.forEach(function (p, i) {
+        p.parent = d;
+        p.layoutPoint = layout[i].point;
+        p.layoutDrawRoute = layout[i].drawRoute;
+        p.layoutHidden = layout[i].hidden;
+      });
+    });
+  }
   function loadMapMask() {
     var img = new Image();
 
@@ -177,7 +218,9 @@
       canvas.height = H;
       mapMaskCtx = canvas.getContext("2d", { willReadFrequently: true });
       mapMaskCtx.drawImage(img, 0, 0, W, H);
-      refreshBranches();
+      initializePoiLayouts();
+      updateMapElements();
+      buildExploreList();
     };
 
     img.onerror = function () {
@@ -219,12 +262,12 @@
   function nearOtherDistillery(d, point) {
     return D.some(function (other) {
       if (other.slug === d.slug) return false;
-      return dist(pxOf(other), point) < 42;
+      return dist(pxOf(other), point) < 36;
     });
   }
   function overlapsPlaced(point, placed) {
     return placed.some(function (other) {
-      return dist(other.point, point) < 42;
+      return dist(other.point, point) < 34;
     });
   }
   function layoutPoiPixels(d) {
@@ -236,41 +279,69 @@
       var base = basePoiPixel(p) || fallbackPoiPixel(d, i, n);
       var direct = { x: clamp(base.x, 24, W - 24), y: clamp(base.y, 24, H - 24) };
       var directDistance = dist(c, direct);
-      var candidates = [];
-      var radii = [58, 70, 82];
-      var offsets = [0, -18, 18, -34, 34];
-      var sweepAngles = [0, 45, 90, 135, 180, 225, 270, 315, 30, 60, 120, 150, 210, 240, 300, 330];
+      
+      // Calculate the actual geographic direction of the POI relative to the distillery
+      var projD = projectGeoPixel(d) || c;
+      var dx = direct.x - projD.x;
+      var dy = direct.y - projD.y;
+      var actualAngleRad = Math.atan2(dy, dx);
+      var actualAngleDeg = actualAngleRad * 180 / Math.PI;
 
+      var baseAngleDeg = actualAngleDeg;
       if (Number.isFinite(p.calloutAngle)) {
-        candidates.push(radialPixel(d, p.calloutRadius || 58, p.calloutAngle));
+        baseAngleDeg = p.calloutAngle;
       }
-      if (directDistance >= 46 && directDistance <= 115 && !nearOtherDistillery(d, direct)) {
-        candidates.push(direct);
+
+      var candidates = [];
+      
+      // Try direct placement first if it's outside the distillery star's footprint
+      if (!nearOtherDistillery(d, direct)) {
+        if (directDistance >= 20 && directDistance <= 120) {
+          candidates.push(direct);
+        }
       }
+
+      // Generate sweep positions centered around the actual relative angle
+      var radii = [20, 28, 38, 48, 60, 76];
+      if (Number.isFinite(p.calloutRadius)) {
+        radii.unshift(p.calloutRadius);
+      }
+      var angleOffsets = [0, -20, 20, -45, 45, -70, 70, -100, 100, -135, 135, 180];
+
       radii.forEach(function (radius) {
-        offsets.forEach(function (offset) {
-          candidates.push(calloutPixel(d, i, n, radius, offset));
-        });
-        sweepAngles.forEach(function (angle, ai) {
-          candidates.push(radialPixel(d, radius, sweepAngles[(ai + i * 5) % sweepAngles.length]));
+        angleOffsets.forEach(function (offset) {
+          candidates.push(radialPixel(d, radius, baseAngleDeg + offset));
         });
       });
 
+      // Last-resort fallback for very close or narrow coastal locations
+      if (!nearOtherDistillery(d, direct) && directDistance < 20) {
+        candidates.push(direct);
+      }
+
       for (var ci = 0; ci < candidates.length; ci++) {
         var candidate = candidates[ci];
-        if (dist(c, candidate) < 44) continue;
-        if (!isLandPoint(candidate)) continue;
         if (overlapsPlaced(candidate, placed)) continue;
+
+        // Check if the candidate is on land.
+        // We only bypass the land check if this is the absolute final fallback point (direct).
+        if (!isLandPoint(candidate)) {
+          if (candidate === direct && ci === candidates.length - 1) {
+            // allow direct coordinate even if it falls near water, as it's the handcrafted location
+          } else {
+            continue;
+          }
+        }
 
         var item = {
           point: candidate,
-          drawRoute: dist(c, candidate) <= 115
+          drawRoute: dist(c, candidate) <= 120
         };
         placed.push(item);
         return item;
       }
 
-      return { hidden: true, point: direct, drawRoute: false };
+      return { hidden: false, point: direct, drawRoute: false };
     });
   }
   function focusDistillery(d) {
@@ -278,14 +349,14 @@
     var target = P(c.x, c.y);
     var currentZoom = map.getZoom();
     var focusZoom = (overviewZoom == null ? currentZoom : overviewZoom + 0.95);
+    var targetZoom = Math.max(currentZoom, focusZoom);
 
     stopSmoothWheelZoom();
     map.invalidateSize({ pan: false, animate: false });
     map.stop();
-    map.flyTo(target, Math.max(currentZoom, focusZoom), {
+    map.setView(target, targetZoom, {
       animate: true,
-      duration: 0.7,
-      easeLinearity: 0.16,
+      duration: 0.65,
       noMoveStart: true
     });
   }
@@ -302,7 +373,17 @@
       mapResizeFrame = null;
       if (!map) return;
       map.invalidateSize({ pan: false, animate: false });
-      refreshBranches();
+      
+      var currentZoom = map.getZoom();
+      var fitZoom = map.getBoundsZoom(bounds);
+      overviewZoom = fitZoom;
+      map.setMinZoom(fitZoom);
+      
+      if (currentZoom < fitZoom) {
+        map.setZoom(fitZoom);
+      }
+      
+      updateMapElements();
     });
   }
   function resizeMapSoon() {
@@ -382,7 +463,7 @@
       smoothWheelTargetZoom = null;
       smoothWheelActive = false;
       smoothWheelAnchor = null;
-      refreshBranches();
+      updateMapElements();
     }, 180);
   }
   function bindSmoothWheelZoom() {
@@ -436,50 +517,94 @@
     return L.divIcon({ html: html, className: "cdans_divicon", iconSize: [36, 36], iconAnchor: [18, 18] });
   }
 
-  /* --- POIs + routes for the active distillery ------------------------------ */
-  function showBranches(d) {
+  /* --- POIs + routes for all distilleries ----------------------------------- */
+  function updateMapElements() {
+    // 1. Update distillery markers visibility and active states
+    Object.keys(starMarkers).forEach(function (s) {
+      var m = starMarkers[s];
+      if (activeLayers.distillery) {
+        if (!map.hasLayer(m)) {
+          map.addLayer(m);
+        }
+        m.setZIndexOffset(s === activeSlug ? Z_ACTIVE_MARKER : Z_OTHER_MARKER);
+        var node = m.getElement();
+        if (node) {
+          var mk = node.querySelector(".cdans_marker");
+          if (mk) {
+            mk.classList.toggle("is-active", s === activeSlug);
+          }
+        }
+      } else {
+        if (map.hasLayer(m)) {
+          map.removeLayer(m);
+        }
+      }
+    });
+
+    // 2. Clear current POIs and routes
     poiLayer.clearLayers();
     routeLayer.clearLayers();
-    var c = pxOf(d);
-    var layout = layoutPoiPixels(d);
-    d.pois.forEach(function (p, i) {
-      var entry = layout[i];
-      if (!entry || entry.hidden) return;
 
-      var pp = entry.point;
-      var start = P(c.x, c.y);
-      var end = P(pp.x, pp.y);
+    // 3. Draw visible POIs and their connection routes
+    D.forEach(function (d) {
+      var c = pxOf(d);
+      var isParentActive = (d.slug === activeSlug);
 
-      if (entry.drawRoute) {
-        L.polyline([start, end], {
-          color: DATA.brand.star,
-          weight: 3,
-          opacity: 0.95,
-          dashArray: "7 8",
-          lineCap: "round",
-          interactive: false,
-          className: "cdans_branch_path"
-        }).addTo(routeLayer);
-      }
+      d.pois.forEach(function (p) {
+        p.marker = null; // Clear old marker ref
 
-      var m = L.marker(end, {
-        icon: makePoiIcon(p),
-        riseOnHover: true,
-        zIndexOffset: Z_ACTIVE_POI
+        var isPoiVisible = isParentActive || activeLayers[p.cat];
+
+        if (isPoiVisible) {
+          var pp = p.layoutPoint;
+          if (!pp || p.layoutHidden) return;
+
+          var start = P(c.x, c.y);
+          var end = P(pp.x, pp.y);
+
+          // Draw dashed routes (only for the active distillery)
+          if (p.layoutDrawRoute && activeLayers.distillery && isParentActive) {
+            L.polyline([start, end], {
+              color: DATA.brand.star,
+              weight: 4,
+              opacity: 0.95,
+              dashArray: "7 8",
+              lineCap: "round",
+              interactive: false,
+              className: "cdans_branch_path is-active-route"
+            }).addTo(routeLayer);
+          }
+
+          // Create POI marker
+          var m = L.marker(end, {
+            icon: makePoiIcon(p),
+            riseOnHover: true,
+            zIndexOffset: isParentActive ? Z_ACTIVE_POI + 100 : Z_ACTIVE_POI
+          });
+
+          var distStr = poiDistanceStr(p);
+          m.bindPopup(
+            '<div class="cdans_pop_name">' + p.name + "</div>" +
+            '<div class="cdans_pop_cat">' + (CAT_LABEL[p.cat] || p.cat) + "</div>" +
+            (distStr ? '<div class="cdans_pop_dist">' + distStr + '</div>' : '') +
+            '<a class="cdans_poi_link" target="_blank" rel="noopener" href="' +
+              gmapsDir(p.lat, p.lng, d.lat, d.lng) + '">Directions &rarr;</a>'
+          );
+
+          m.on("click", function () {
+            if (activeSlug !== d.slug) {
+              selectDistillery(d.slug, false);
+              if (p.marker) {
+                p.marker.openPopup();
+              }
+            }
+          });
+
+          m.addTo(poiLayer);
+          p.marker = m; // Keep ref to trigger popup from sidebar
+        }
       });
-      m.bindPopup(
-        '<div class="cdans_pop_name">' + p.name + "</div>" +
-        '<div class="cdans_pop_cat">' + (CAT_LABEL[p.cat] || p.cat) + "</div>" +
-        '<a class="cdans_poi_link" target="_blank" rel="noopener" href="' +
-          gmapsDir(p.lat, p.lng, d.lat, d.lng) + '">Directions &rarr;</a>'
-      );
-      m.addTo(poiLayer);
     });
-  }
-  function refreshBranches() {
-    if (!activeSlug) return;
-    var d = D.find(function (x) { return x.slug === activeSlug; });
-    if (d) showBranches(d);
   }
 
   /* --- Selection ------------------------------------------------------------ */
@@ -488,22 +613,19 @@
     if (!d) return;
     activeSlug = slug;
 
+    // Update distillery list items active classes
     document.querySelectorAll("#cdans_app .cdans_item").forEach(function (n) {
       var isActive = n.getAttribute("data-slug") === slug;
       n.classList.toggle("is-active", isActive);
     });
-    Object.keys(starMarkers).forEach(function (s) {
-      starMarkers[s].setZIndexOffset(s === slug ? Z_ACTIVE_MARKER : Z_OTHER_MARKER);
-      var node = starMarkers[s].getElement();
-      if (node) {
-        var mk = node.querySelector(".cdans_marker");
-        if (mk) {
-          mk.classList.toggle("is-active", s === slug);
-        }
-      }
+
+    // Update explore list items active parent classes
+    document.querySelectorAll("#cdans_app .cdans_explore_item").forEach(function (n) {
+      var isActive = n.getAttribute("data-parent-slug") === slug;
+      n.classList.toggle("is-active-parent", isActive);
     });
 
-    showBranches(d);
+    updateMapElements();
     var detailWasOpen = renderDetail(d);
 
     if (fly !== false) {
@@ -520,10 +642,14 @@
         ? '<a class="cdans_poi_action" target="_blank" rel="noopener" href="' + p.url + '">Visit</a>'
         : '<span class="cdans_poi_action is-disabled">No website</span>';
 
+      var distStr = poiDistanceStr(p);
+      var metaStr = (CAT_LABEL[p.cat] || p.cat);
+      if (distStr) metaStr += " • " + distStr;
+
       return '<article class="cdans_poi_card">' +
         '<div class="cdans_poi_card_icon cat-' + p.cat + '">' + catAsset(p.cat, "cdans_poi_card_img") + "</div>" +
         '<div class="cdans_poi_card_body">' +
-          '<div class="cdans_poi_card_meta">' + (CAT_LABEL[p.cat] || p.cat) + "</div>" +
+          '<div class="cdans_poi_card_meta">' + metaStr + "</div>" +
           '<div class="cdans_poi_card_name">' + p.name + "</div>" +
           '<p class="cdans_poi_card_note">' + poiBlurb(p) + "</p>" +
           '<div class="cdans_poi_card_actions">' +
@@ -591,7 +717,7 @@
     PX[d.slug] = [Math.round(ll.lng), Math.round(H - ll.lat)];
     document.getElementById("cdans_editbar").querySelector(".cdans_editbar_txt").textContent =
       d.name + ": [" + PX[d.slug][0] + ", " + PX[d.slug][1] + "]";
-    if (activeSlug === d.slug) showBranches(d);
+    if (activeSlug === d.slug) updateMapElements();
   }
   function toggleEdit() {
     editMode = !editMode;
@@ -614,11 +740,22 @@
   function makeSidebarBadge(d) {
     return starAsset("cdans_item_badge_star") + '<span class="cdans_item_badge_num">' + d.num + "</span>";
   }
+
   function buildList() {
     var list = document.getElementById("cdans_list");
+    list.innerHTML = "";
+
+    if (!activeLayers.distillery) {
+      var empty = el("div", "cdans_list_empty", "Distillery layer is toggled off.");
+      list.appendChild(empty);
+      return;
+    }
+
     D.slice().sort(function (a, b) { return a.num - b.num; }).forEach(function (d) {
       var item = el("div", "cdans_item");
       item.setAttribute("data-slug", d.slug);
+      if (d.slug === activeSlug) item.classList.add("is-active");
+
       var main = el("button", "cdans_item_main");
       main.type = "button";
       main.appendChild(el("span", "cdans_item_badge", makeSidebarBadge(d)));
@@ -634,31 +771,135 @@
       list.appendChild(item);
     });
   }
+
+  function buildExploreList() {
+    var list = document.getElementById("cdans_explore_list");
+    if (!list) return;
+    list.innerHTML = "";
+
+    var allPois = [];
+    D.forEach(function (d) {
+      d.pois.forEach(function (p) {
+        if (activeLayers[p.cat]) {
+          allPois.push(p);
+        }
+      });
+    });
+
+    if (allPois.length === 0) {
+      var empty = el("div", "cdans_list_empty", "No active categories matching stops.");
+      list.appendChild(empty);
+      return;
+    }
+
+    allPois.sort(function (a, b) {
+      var catA = CAT_LABEL[a.cat] || a.cat;
+      var catB = CAT_LABEL[b.cat] || b.cat;
+      if (catA !== catB) return catA.localeCompare(catB);
+      return a.name.localeCompare(b.name);
+    });
+
+    var currentCatGroup = null;
+
+    allPois.forEach(function (p) {
+      var catName = CAT_LABEL[p.cat] || p.cat;
+      if (currentCatGroup !== catName) {
+        currentCatGroup = catName;
+        var header = el("div", "cdans_list_group_header", catName);
+        list.appendChild(header);
+      }
+
+      var item = el("div", "cdans_item cdans_explore_item");
+      item.setAttribute("data-parent-slug", p.parent.slug);
+      if (p.parent.slug === activeSlug) item.classList.add("is-active-parent");
+
+      var main = el("button", "cdans_item_main");
+      main.type = "button";
+      main.appendChild(el("span", "cdans_explore_badge cat-" + p.cat, catAsset(p.cat, "cdans_explore_badge_img")));
+
+      var body = el("div", "cdans_item_body");
+      body.appendChild(el("div", "cdans_item_name", p.name));
+      var townStr = "Near " + p.parent.name;
+      var distStr = poiDistanceStr(p);
+      if (distStr) townStr += " • " + distStr;
+      body.appendChild(el("div", "cdans_item_town", townStr));
+      main.appendChild(body);
+
+      item.appendChild(main);
+      main.addEventListener("click", function () {
+        selectDistillery(p.parent.slug, true);
+        if (p.marker) {
+          setTimeout(function () {
+            p.marker.openPopup();
+          }, 750);
+        }
+      });
+      list.appendChild(item);
+    });
+  }
+
   function buildLegend() {
     var wrap = document.getElementById("cdans_legend");
+    wrap.innerHTML = "";
     var items = [
-      { label: "Distillery", icon: starAsset("cdans_legend_img") },
-      { label: "Trail", icon: catAsset("hike", "cdans_legend_img") },
-      { label: "Stay", icon: catAsset("stay", "cdans_legend_img") },
-      { label: "Sightseeing", icon: catAsset("scenic", "cdans_legend_img") },
-      { label: "Food & Drink", icon: catAsset("food", "cdans_legend_img") }
+      { id: "distillery", label: "Distillery", icon: starAsset("cdans_legend_img") },
+      { id: "hike", label: "Trail", icon: catAsset("hike", "cdans_legend_img") },
+      { id: "stay", label: "Stay", icon: catAsset("stay", "cdans_legend_img") },
+      { id: "scenic", label: "Sightseeing", icon: catAsset("scenic", "cdans_legend_img") },
+      { id: "food", label: "Food & Drink", icon: catAsset("food", "cdans_legend_img") }
     ];
     items.forEach(function (it) {
-      var n = el("div", "cdans_legend_item");
+      var active = activeLayers[it.id];
+      var n = el("button", "cdans_legend_item" + (active ? " is-active" : " is-inactive"));
+      n.type = "button";
+      n.setAttribute("data-cat", it.id);
       var chip = el("span", "cdans_legend_chip", it.icon);
       n.appendChild(chip);
-      n.appendChild(document.createTextNode(it.label));
+      var labelSpan = el("span", "cdans_legend_label", it.label);
+      n.appendChild(labelSpan);
+
+      n.addEventListener("click", function () {
+        activeLayers[it.id] = !activeLayers[it.id];
+        n.classList.toggle("is-active", activeLayers[it.id]);
+        n.classList.toggle("is-inactive", !activeLayers[it.id]);
+        updateMapElements();
+        buildList();
+        buildExploreList();
+      });
+
       wrap.appendChild(n);
     });
   }
 
+  function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById("cdans_tab_distilleries").classList.toggle("is-active", tab === "distilleries");
+    document.getElementById("cdans_tab_explore").classList.toggle("is-active", tab === "explore");
+    document.getElementById("cdans_list").style.display = (tab === "distilleries" ? "block" : "none");
+    document.getElementById("cdans_explore_list").style.display = (tab === "explore" ? "block" : "none");
+  }
+
   /* --- Init ----------------------------------------------------------------- */
   function init() {
-    buildLegend();
-    buildList();
     geoProjector = buildGeoProjector();
 
-    var bounds = [[0, 0], [H, W]];
+    // 1. Run layout for all distilleries and pre-cache POI layout properties
+    initializePoiLayouts();
+
+    // 2. Build Sidebar Lists & Legend
+    buildLegend();
+    buildList();
+    buildExploreList();
+
+    // 3. Tab switching listeners
+    document.getElementById("cdans_tab_distilleries").addEventListener("click", function () {
+      switchTab("distilleries");
+    });
+    document.getElementById("cdans_tab_explore").addEventListener("click", function () {
+      switchTab("explore");
+    });
+
+    // 4. Initialize Map
     map = L.map("cdans_map", {
       crs: L.CRS.Simple,
       attributionControl: false,
@@ -675,8 +916,9 @@
       inertiaDeceleration: 2600,
       inertiaMaxSpeed: 900,
       easeLinearity: 0.18,
-      maxBoundsViscosity: 0.85
+      maxBoundsViscosity: 1.0 // rigid boundaries
     });
+
     L.imageOverlay(BM.url, bounds).addTo(map);
     if (BM.decorations && BM.decorations.url) {
       L.imageOverlay(BM.decorations.url, scaledMapBounds(BM.decorations), {
@@ -684,18 +926,23 @@
         className: "cdans_map_background_icons"
       }).addTo(map);
     }
+
     map.fitBounds(bounds);
-    overviewZoom = map.getZoom();
-    map.setMaxBounds(L.latLngBounds(bounds).pad(0.25));
-    map.setMinZoom(map.getZoom() - 0.5);
+    overviewZoom = map.getBoundsZoom(bounds);
+    map.setMinZoom(overviewZoom);
+    map.setMaxBounds(bounds); // Lock completely to illustration bounds, no padding!
+
     routeLayer.addTo(map);
     poiLayer.addTo(map);
+
     map.on("zoomend", function () {
-      if (!smoothWheelActive) refreshBranches();
+      if (!smoothWheelActive) updateMapElements();
     });
+
     bindSmoothWheelZoom();
     loadMapMask();
 
+    // 5. Create distillery markers
     D.forEach(function (d) {
       var c = pxOf(d);
       var m = L.marker(P(c.x, c.y), { icon: makeStarIcon(d), riseOnHover: true, zIndexOffset: Z_OTHER_MARKER, draggable: false });
@@ -708,7 +955,7 @@
     document.getElementById("cdans_editbtn").addEventListener("click", toggleEdit);
     document.getElementById("cdans_editcopy").addEventListener("click", copyCoords);
 
-    // prime first distillery's branches but keep the detail panel closed
+    // 6. Prime first selection but keep details closed
     selectDistillery(D[0].slug, false);
     closeDetail();
     map.fitBounds(bounds);
