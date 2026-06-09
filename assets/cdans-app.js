@@ -837,9 +837,32 @@
   }
 
   /* --- Selection ------------------------------------------------------------ */
+  function clearDistillerySelection(skipMapUpdate) {
+    activeSlug = null;
+
+    document.querySelectorAll("#cdans_app .cdans_item.is-active").forEach(function (n) {
+      n.classList.remove("is-active");
+    });
+
+    document.querySelectorAll("#cdans_app .cdans_explore_item.is-active-parent").forEach(function (n) {
+      n.classList.remove("is-active-parent");
+    });
+
+    closeDetail();
+
+    if (!skipMapUpdate) {
+      updateMapElements();
+    }
+  }
+
   function selectDistillery(slug, fly) {
     var d = D.find(function (x) { return x.slug === slug; });
     if (!d) return;
+    if (activeSlug === slug) {
+      clearDistillerySelection(false);
+      return;
+    }
+
     activeSlug = slug;
 
     // Update distillery list items active classes
@@ -929,7 +952,9 @@
     panel.classList.add("is-open");
     document.getElementById("cdans_app").classList.add("is-detail-open");
     resizeMapSoon();
-    panel.querySelector(".cdans_detail_close").addEventListener("click", closeDetail);
+    panel.querySelector(".cdans_detail_close").addEventListener("click", function () {
+      clearDistillerySelection(false);
+    });
     panel.querySelector(".cdans_btn_profile").addEventListener("click", function () { openProfileModal(d); });
     return wasOpen;
   }
@@ -1279,6 +1304,7 @@
         activeLayers[it.id] = !activeLayers[it.id];
         n.classList.toggle("is-active", activeLayers[it.id]);
         n.classList.toggle("is-inactive", !activeLayers[it.id]);
+        clearDistillerySelection(true);
         updateMapElements();
         buildList();
         buildExploreList();
@@ -1376,9 +1402,8 @@
     bindEditorShortcut();
     bindProfileModalKeys();
 
-    // 6. Prime first selection but keep details closed
-    selectDistillery(D[0].slug, false);
-    closeDetail();
+    // 6. Start with the full map visible and no active distillery selection.
+    updateMapElements();
     map.fitBounds(bounds);
   }
 
