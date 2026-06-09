@@ -1034,6 +1034,14 @@
 
     return "        { " + fields.join(", ") + " }";
   }
+  function formatProfileForData(profile) {
+    var paragraphs = Array.isArray(profile) ? profile : [profile];
+    return [
+      "      profile: [",
+      paragraphs.map(function (copy) { return "        " + jsString(copy); }).join(",\n"),
+      "      ],"
+    ].join("\n");
+  }
   function formatPixelsBlock() {
     var lines = ["  pixels: {"];
     D.forEach(function (d, i) {
@@ -1093,10 +1101,14 @@
       "      address: " + jsString(d.address) + ",",
       "      image: " + jsString(d.image) + ",",
       "      cardImage: " + jsString(d.cardImage) + ",",
-      "      desc: " + jsString(d.desc) + ",",
-      "      pois: ["
+      "      desc: " + jsString(d.desc) + ","
     ];
 
+    if (d.profile) {
+      lines.push(formatProfileForData(d.profile));
+    }
+
+    lines.push("      pois: [");
     d.pois.forEach(function (p, i) {
       lines.push(formatPoiForData(p) + (i === d.pois.length - 1 ? "" : ","));
     });
